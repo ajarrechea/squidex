@@ -54,8 +54,12 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
+          {{- $secretEnabled := .Values.secretEnv.enabled }}
           {{- range $key, $val := .Values.env }}
-            {{- if (eq $key "URLS__BASEURL") }}
+            {{- $skipKeys := list "EVENTSTORE__MONGODB__CONFIGURATION" "STORE__MONGODB__CONFIGURATION" "IDENTITY__ADMINPASSWORD" "IDENTITY__OIDCSECRET" "ASSETSTORE__AMAZONS3__ACCESSKEY" "ASSETSTORE__AMAZONS3__SECRETKEY" }}
+            {{- if and $secretEnabled (has $key $skipKeys) }}
+              {{/* Skip keys managed by secrets */}}
+            {{- else if (eq $key "URLS__BASEURL") }}
             - name: {{ $key | quote }}
               value: {{ required (printf "The value .Values.env.%s is required" $key) $val | quote }}
             {{- else }}
@@ -64,7 +68,42 @@ spec:
             {{- end }}
           {{- end }}
           
+          {{- if .Values.secretEnv.enabled }}
+          # Environment variables from secrets
+            - name: "EVENTSTORE__MONGODB__CONFIGURATION"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: MONGODB_CONNECTION
+            - name: "STORE__MONGODB__CONFIGURATION"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: MONGODB_CONNECTION
+            - name: "IDENTITY__ADMINPASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: ADMIN_PASSWORD
+            - name: "IDENTITY__OIDCSECRET"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: OIDC_SECRET
+            - name: "ASSETSTORE__AMAZONS3__ACCESSKEY"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: S3_ACCESS_KEY
+            - name: "ASSETSTORE__AMAZONS3__SECRETKEY"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.secretName }}
+                  key: S3_SECRET_KEY
+          {{- end }}
+          
           {{- $mongoDefaultConnectionString := printf "mongodb://%s" (include "squidex.mongoDefaultHostname" .) }}
+          {{- if not .Values.secretEnv.enabled }}
           {{- if (not .Values.env.EVENTSTORE__MONGODB__CONFIGURATION) }}
             - name: "EVENTSTORE__MONGODB__CONFIGURATION"
               value: {{ $mongoDefaultConnectionString | quote }}
@@ -73,6 +112,7 @@ spec:
           {{- if (not .Values.env.STORE__MONGODB__CONFIGURATION) }}
             - name: "STORE__MONGODB__CONFIGURATION"
               value: {{ $mongoDefaultConnectionString | quote }}
+          {{- end }}
           {{- end }}
 
           {{- if (not .Values.env.ASSETSTORE__MONGODB__CONFIGURATION) }}
