@@ -6,7 +6,9 @@ metadata:
     {{- include "squidex.labels" . | indent 4 }}
     orleans/serviceId: "squidex-{{ default .Chart.AppVersion .Values.image.tag }}"
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.deployment.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "squidex.selectors" . | indent 6 }}
